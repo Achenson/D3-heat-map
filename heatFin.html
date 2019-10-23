@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>FCC | Data Vis 03 - Heat Map</title>
+    <style>
+      .svgcolor {
+        background-color: white;
+      }
+
+      .parent {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+      }
+      body {
+        background-color: white;
+      }
+
+      .y-text {
+        font-size: 0.8rem;
+        font: weight 500;
+      }
+
+      #tooltip {
+        position: absolute;
+        text-align: center;
+        width: 140px;
+        height: 50px;
+        padding: 10px;
+        font: 16px sans-serif;
+        background-color: brown;
+        color: white;
+        border-radius: 8px;
+        pointer-events: none;
+      }
+
+      .cell:hover {
+        stroke: black;
+      }
+
+      #y-axis {
+        font-size: 0.8rem;
+      }
+
+      #x-axis {
+        font-size: 0.8rem;
+      }
+
+      .x-text {
+        font-size: 1.3rem;
+      }
+
+      .y-text {
+        font-size: 1.3rem;
+      }
+
+      .legend-text {
+        font-size: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="parent">
+      <h1 style="text-align: center" id="title">
+        Monthly Global Land-Surface Temperature
+      </h1>
+      <h2 style="text-align: center" id="description">
+        1753 - 2015: base temperature 8.66 ℃
+      </h2>
+
+      <div class="chart"></div>
+    </div>
+
+    <script src="https://d3js.org/d3.v5.min.js"></script>
+
+    <script>
+      const freeCodeCampURl =
+        "https://raw.githubusercontent.com/freeCodeCamp/ProjectReferenceData/master/global-temperature.json";
+
+      fetch(freeCodeCampURl)
+        .then(res => res.json())
+        .then(jsonData => {
+          //let toString = JSON.stringify(jsonData, null, 2);
+          //console.log("TCL: toString", toString);
+
+          /* jsonData structure:
+      {
+      "baseTemperature": 8.66,
+      "monthlyVariance": [
+        {
+          "year": 1753,
+          "month": 1,
+          "variance": -1.366
+        }, ...
+        ]
+                    */
+
+          let dataset = jsonData.monthlyVariance;
+
+          const margin = { top: 20, right: 20, bottom: 150, left: 120 };
+          //height & weight of bar chart itself,
+          // height & weight of svg will include this margins
+          const w = 1400 - margin.left - margin.right;
+          const h = 500 - margin.top - margin.bottom;
+
+          //scales
+
+          const xScale = d3
+            .scaleLinear()
+            //!!! jsonData is mapped to get access to all years
+            .domain([1753, 2015])
+            .range([0, w]);
+          //.tickFormat(d3.format("d"));
+
+          let months = [
+            "January",
+            "February",
+            "March",
+            "April",
+            "May",
+            "June",
+            "July",
+            "August",
+            "September",
+            "October",
+            "November",
+            "December"
+          ];
+
+          const yScale = d3
+            .scaleBand()
+            .domain(months, (d, i) => months.length - i)
+            .range([0, h]);
+
+          //adding svg and g
+          const svg = d3
+            .select(".chart")
+            .append("svg")
+            .attr("width", w + margin.left + margin.right)
+            .attr("height", h + margin.top + margin.bottom)
+            .attr("class", "svgcolor");
+
+          // append a 'group' element to 'svg'
+          // moves the 'group' element to the top left margin
+          const gElement = svg.append("g").attr(
+            "transform",
+            //"translate(" + margin.left + "," + margin.top + ")"
+            `translate(${margin.left},${margin.top})`
+          );
+
+          //advanced tooltip
+
+          const proTooltip = d3
+            .select("body")
+            .append("div")
+            .attr("id", "tooltip")
+            .style("opacity", 0);
+
+          // adding bars
+
+          let colors = ["blue", "lightblue", "beige", "orange", "red"];
+
+          svg
+            .append("g")
+            .attr(
+              "transform",
+              "translate(" + margin.left + "," + margin.top + ")",
+              `translate(${margin.left},${margin.top})`
+            )
+
+            .selectAll("rect")
+            .data(dataset)
+            .enter()
+            .append("rect")
+            .attr("x", d => xScale(d.year))
+            .attr("y", d => (d.month - 1) * (h / 12))
+            .attr("width", (w / dataset.length) * 12 + 1)
+            .attr("height", h / 12)
+            //colors
+            .attr("fill", d => {
+              let t = d.variance + jsonData.baseTemperature;
+              console.log(t);
+
+              //!!! non-standard practice
+              switch (true) {
+                case t <= 4.14:
+                  return colors[0];
+                  break;
+                case t > 4.14 && t <= 6.58:
+                  return colors[1];
+                  break;
+                case t > 6.58 && t <= 9.02:
+                  return colors[2];
+                  break;
+                case t > 9.02 && t <= 11.46:
+                  return colors[3];
+                  break;
+
+                case t > 11.46:
+                  return colors[4];
+                  break;
+
+                default:
+                  return "black";
+              }
+            })
+
+            .attr("class", "cell")
+            //adding tooltip
+            .on("mouseover", function(d) {
+              let temperature = (jsonData.baseTemperature + d.variance).toFixed(
+                1
+              );
+
+              let plusOrNot = "";
+
+              if (d.variance > 0) {
+                plusOrNot = "+";
+              }
+
+              proTooltip
+                .transition()
+                .duration(0)
+                .style("opacity", 0.9);
+              proTooltip
+                .html(
+                  `${d.year} - ${months[d.month - 1]}` +
+                    "<br/>" +
+                    `${temperature} &#176C` +
+                    "<br/>" +
+                    `${plusOrNot}` +
+                    `${d.variance.toFixed(1)} &#176C`
+                )
+
+                .style("left", d3.event.pageX + "px")
+                .style("top", d3.event.pageY - 110 + "px");
+            })
+            .on("mouseout", function(d) {
+              proTooltip
+                .transition()
+                .duration(300)
+                .style("opacity", 0);
+            });
+
+          //axes
+
+          const xAxis = d3
+            .axisBottom(xScale)
+            .tickFormat(d3.format("d"))
+            .tickValues(d3.range(1760, 2020, 10));
+
+          const yAxis = d3.axisLeft(yScale);
+
+          gElement
+            .append("g")
+            // .attr("transform", "translate(0, " + h + ")")
+            .attr("transform", `translate(0, ${h})`)
+            .call(xAxis)
+            .attr("id", "x-axis");
+
+          gElement
+            .append("g")
+            .attr("transform", `translate(-1, 0)`)
+            .call(yAxis)
+            .attr("id", "y-axis");
+
+          //adding horizontal label
+
+          gElement
+            .append("text")
+            .attr("y", h + 50)
+            .attr("x", w / 2)
+            //.attr("dy", "1.5rem")
+            //.style("text-anchor", "middle")
+            .text("Years")
+            .attr("class", "x-text")
+            .attr("id", "legend");
+
+          //adding vertical label
+
+          gElement
+            .append("text")
+            .attr("transform", "rotate(-90)")
+            .attr("y", -110)
+            .attr("x", 0 - h / 2)
+            .attr("dy", "1.5em")
+            .text("Months")
+            .attr("class", "y-text");
+
+          //adding legend
+
+          for (let i = 0; i < 5; i++) {
+            gElement
+              .append("rect")
+              .attr("y", h + 65)
+              .attr("x", w * 0.75 + i * 35)
+              .attr("height", 25)
+              .attr("width", 35)
+              .attr("fill", colors[i])
+              .attr("id", "legend");
+          }
+
+          for (let i = 0; i < 4; i++) {
+            gElement
+              .append("text")
+              .attr("y", h + 105)
+              .attr("x", w * 0.75 + 25 + i * 35)
+              .text((4.14 + i * 2.44).toFixed(1))
+              .attr("class", "legend-text");
+          }
+
+          //adding legend text
+        });
+    </script>
+  </body>
+</html>
